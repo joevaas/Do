@@ -25,7 +25,7 @@ WIDEVINE_BLOB_PATH = os.getenv('WIDEVINE_BLOB_PATH', "widevine/device_client_id_
 WIDEVINE_KEY_PATH = os.getenv('WIDEVINE_KEY_PATH', "widevine/device_private_key")
 
 # Download Directory (where downloaded files will be stored)
-DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', "downloads")
+DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', "cookies")
 
 # Metadata Tag to help with naming downloaded files
 METADATA_TAG = os.getenv('METADATA_TAG', "crunchyroll_download")
