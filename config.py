@@ -1,17 +1,8 @@
-
-### `config.py`
-
-This file will contain the bot's configuration settings and load the environment variables from the `.env` file.
-
-```python
 import os
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Telegram Bot Token
-BOT_TOKEN = os.getenv('BOT_TOKEN')
 
 # Crunchyroll Credentials
 CR_EMAIL = os.getenv('CR_EMAIL')
@@ -24,8 +15,9 @@ L3_KEY = os.getenv('L3_KEY')
 WIDEVINE_BLOB_PATH = os.getenv('WIDEVINE_BLOB_PATH', "widevine/device_client_id_blob")
 WIDEVINE_KEY_PATH = os.getenv('WIDEVINE_KEY_PATH', "widevine/device_private_key")
 
-# Download Directory (where downloaded files will be stored)
-DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', "cookies")
+# Directory paths for downloads and cookies
+DOWNLOAD_DIR = os.getenv('DOWNLOAD_DIR', "downloads")
+COOKIES_DIR = os.getenv('COOKIES_DIR', "cookies")
 
 # Metadata Tag to help with naming downloaded files
 METADATA_TAG = os.getenv('METADATA_TAG', "crunchyroll_download")
