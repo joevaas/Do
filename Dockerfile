@@ -1,21 +1,21 @@
-# Use a lightweight version of Python 3
+# Use a base Python image
 FROM python:3.10-slim
 
-# Set the working directory
+# Set the working directory inside the container
 WORKDIR /app
 
 # Install dependencies
-COPY requirements.txt .
+COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy bot files into the container
+# Copy the entire project into the working directory
 COPY . .
 
-# Install python-dotenv for handling environment variables
-RUN pip install python-dotenv
+# Expose the port (for webhooks if you're using one)
+EXPOSE 80
 
-# Expose a port (not necessary for Telegram bot, but can be useful for debugging)
-EXPOSE 5000
+# Set environment variables from .env
+COPY .env .env
 
-# Run the bot
+# Run bot.py when the container starts
 CMD ["python", "bot.py"]
