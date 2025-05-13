@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-BOT_TOKEN = os.getenv("7848338633:AAETC_5EHCSbdEeZlHR-Nm03BWK8v9vO0fo")
+BOT_TOKEN = os.getenv("7848338633:AAF7YnentA7-1TfS54N1YMWaGFRgkDWuG0M")
 
 # Load environment variables from .env file
 load_dotenv()
