@@ -9,13 +9,15 @@ from config import BOT_TOKEN, CR_EMAIL, CR_PASSWORD, DOWNLOAD_DIR, METADATA_TAG,
 # Ensure the downloads directory exists
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# Function to handle Crunchyroll login
+# Function to handle Crunchyroll login and save cookies
 def login_to_crunchyroll():
-    cookies_file = os.path.join(DOWNLOAD_DIR, "cookies.txt")
+    cookies_file = os.path.join(COOKIES_DIR, "cookies.txt")
+    
     if os.path.exists(cookies_file):
-        return cookies_file
+        return cookies_file  # Return the existing cookies file if available
     
     try:
+        # Create login command using yt-dlp and store cookies
         login_command = [
             "yt-dlp",
             "--username", CR_EMAIL,
