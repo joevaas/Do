@@ -1,70 +1,54 @@
 # Crunchyroll Downloader Bot
 
-This is a Telegram bot that allows users to download Crunchyroll episodes directly from Crunchyroll's website. It supports several features, including checking the download queue, cancelling tasks, and setting custom upload formats.
-
-## Features
-
-- `/dl [URL]` - Download anime from Crunchyroll
-- `/queue` - Check current download queue
-- `/cancel [task_id]` - Cancel a download task
-- `/set_upload_format [video/file]` - Set upload format for downloads
-- `/metadata [tag]` - Set custom metadata tag for downloaded videos
-
-## Requirements
-
-- **Python 3.8+**
-- **yt-dlp** (for downloading videos)
-- **python-telegram-bot** (for Telegram bot functionality)
+This is a Telegram bot that allows you to download anime episodes from Crunchyroll.
 
 ## Setup
 
-1. Clone the repository:
+### Prerequisites
+
+- Python 3.10+ or Docker
+- Telegram bot token
+- Crunchyroll login credentials (email and password)
+- Optional: L3 Key (for advanced features)
+
+### Installation
+
+1. Clone this repository:
 
     ```bash
-    git clone https://github.com/yourusername/crunchyroll-bot.git
-    cd crunchyroll-bot
+    git clone https://github.com/yourusername/crunchyroll-downloader-bot.git
+    cd crunch-roller-downloader-bot
     ```
 
 2. Install dependencies:
+
+    If you're using Python:
 
     ```bash
     pip install -r requirements.txt
     ```
 
-3. Set up your Crunchyroll credentials:
-   - Open `config.py` and add your **Crunchyroll email** and **password** as follows:
-
-    ```python
-    CR_EMAIL = "your_email@example.com"
-    CR_PASSWORD = "your_password"
-    ```
-
-4. Set up your Telegram bot:
-   - Create a bot with [BotFather](https://t.me/BotFather) on Telegram and get the bot token.
-   - Replace `your_telegram_bot_token` in `config.py` with your bot token.
-
-5. Run the bot:
+    Or use Docker (recommended for deployment):
 
     ```bash
-    python bot.py
+    docker build -t crunch-roller-bot .
+    docker run -d crunch-roller-bot
     ```
 
-## Docker Setup
+### Configuration
 
-To run this bot in a Docker container:
+1. Create a `.env` file with your **Crunchyroll** credentials and **Telegram Bot Token**:
 
-1. Build the Docker image:
-
-    ```bash
-    docker build -t crunchyroll-bot .
+    ```env
+    BOT_TOKEN=your_telegram_bot_token
+    CR_EMAIL=your_crunchyroll_email
+    CR_PASSWORD=your_crunchyroll_password
+    L3_KEY=your_l3_key_here  # Optional, only needed if using L3 authentication
     ```
 
-2. Run the Docker container:
+### Running the Bot
 
-    ```bash
-    docker run -d --env-file .env --name crunchyroll-bot crunchyroll-bot
-    ```
+Once everything is set up, you can run the bot with:
 
-## License
-
-This project is licensed under the MIT License.
+```bash
+python bot.py
