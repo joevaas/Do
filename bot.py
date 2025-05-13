@@ -1,120 +1,112 @@
 import os
 import subprocess
 import uuid
+import time
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
-)
-from config import CR_EMAIL, CR_PASSWORD, BOT_TOKEN, COOKIES_PATH, UPLOAD_FORMAT, METADATA_TAG, DOWNLOAD_DIR
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from config import BOT_TOKEN, CR_EMAIL, CR_PASSWORD, DOWNLOAD_DIR, METADATA_TAG, WIDEVINE_BLOB_PATH, WIDEVINE_KEY_PATH
 
-# Download queue storage (task_id -> download task)
-download_queue = {}
-
+# Ensure the downloads directory exists
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# /dl command handler
+# Function to handle Crunchyroll login
+def login_to_crunchyroll():
+    cookies_file = os.path.join(DOWNLOAD_DIR, "cookies.txt")
+    if os.path.exists(cookies_file):
+        return cookies_file
+    
+    try:
+        login_command = [
+            "yt-dlp",
+            "--username", CR_EMAIL,
+            "--password", CR_PASSWORD,
+            "--write-info-json",
+            "--cookies", cookies_file,
+            "https://www.crunchyroll.com"
+        ]
+        subprocess.run(login_command, check=True)
+        print("Login successful. Cookies saved.")
+        return cookies_file
+    except subprocess.CalledProcessError as e:
+        print(f"Login failed: {e}")
+        return None
+
+# Progress hook function to capture and update download status
+def progress_hook(d):
+    if d['status'] == 'downloading':
+        percent = d['downloaded_bytes'] / d['total_bytes'] * 100 if d['total_bytes'] else 0
+        speed = d.get('speed', 0) / (1024 * 1024)  # Convert speed to MB/s
+        eta = d.get('eta', 0)  # ETA in seconds
+        file_name = d.get('filename', "Unknown")
+        
+        # Formatting the download progress bar
+        progress_bar = "■" * int(percent // 10) + "□" * (10 - int(percent // 10))
+        
+        # Display download progress
+        progress_message = (
+            f"🎬 {file_name} Download Started...\n"
+            f"{progress_bar}\n\n"
+            f"🔗 Size: {d['total_bytes'] / (1024 * 1024):.2f} MB | {d['downloaded_bytes'] / (1024 * 1024):.2f} MB\n"
+            f"⏳ Done: {percent:.2f}%\n"
+            f"🚀 Speed: {speed:.2f} MB/s\n"
+            f"⏰ ETA: {eta}s"
+        )
+
+        # Update the bot message with the current progress
+        if hasattr(progress_hook, 'current_message_id'):
+            progress_hook.current_message.edit_text(progress_message)
+        else:
+            progress_hook.current_message = d['update'].message.reply_text(progress_message)
+
+# /dl command
 async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        await update.message.reply_text("Usage: /dl [Crunchyroll URL]")
+        await update.message.reply_text("Usage: /dl <Crunchyroll URL>")
         return
 
     url = context.args[0]
     task_id = str(uuid.uuid4())[:8]
-    file_output = f"{DOWNLOAD_DIR}/{METADATA_TAG}-%(title)s.%(ext)s"
+    output_template = f"{DOWNLOAD_DIR}/{METADATA_TAG}-%(title)s.%(ext)s"
 
+    # Ensure we are logged in to Crunchyroll
+    cookies_file = login_to_crunchyroll()
+    if not cookies_file:
+        await update.message.reply_text("❌ Failed to authenticate with Crunchyroll. Please check credentials.")
+        return
+
+    # yt-dlp command with Widevine decryption support and authentication using cookies
     command = [
         "yt-dlp",
-        "--cookies", COOKIES_PATH,
-        "--output", file_output,
+        "--external-downloader", "aria2c",
+        "--output", output_template,
         "--merge-output-format", "mkv",
         "--no-playlist",
+        "--cookies", cookies_file,  # Use the cookies file for authentication
+        "--downloader-args", f"ffmpeg_i:-client_id_blob {WIDEVINE_BLOB_PATH} -private_key {WIDEVINE_KEY_PATH}",
+        "--progress",  # Enable progress display
+        "--quiet",  # Make it quieter for processing, will rely on the custom progress hook
         url
     ]
 
-    # Save task
-    download_queue[task_id] = {
-        "url": url,
-        "user": update.effective_user.first_name,
-        "status": "Queued"
-    }
+    # Send an initial message that download has started
+    initial_message = await update.message.reply_text(f"📥 Download Started: `{task_id}`\nURL: {url}", parse_mode='Markdown')
 
-    await update.message.reply_text(f"📥 Task queued with ID `{task_id}`.\nDownloading: {url}", parse_mode='Markdown')
+    # Set the message object for progress hook to update
+    progress_hook.current_message = initial_message
 
-    # Run download in background
+    # Run the download in a separate task to avoid blocking
     async def run_download():
-        download_queue[task_id]["status"] = "Downloading"
         try:
-            subprocess.run(command, check=True)
-            download_queue[task_id]["status"] = "Completed"
-        except subprocess.CalledProcessError:
-            download_queue[task_id]["status"] = "Failed"
+            subprocess.run(command, check=True, stderr=subprocess.PIPE)
+            await update.message.reply_text(f"✅ Download complete for `{task_id}`", parse_mode='Markdown')
+        except subprocess.CalledProcessError as e:
+            await update.message.reply_text(f"❌ Download failed: {str(e)}", parse_mode='Markdown')
 
     context.application.create_task(run_download())
 
-# /queue command handler
-async def queue(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not download_queue:
-        await update.message.reply_text("✅ Queue is empty.")
-        return
-    message = "📋 *Download Queue:*\n"
-    for tid, data in download_queue.items():
-        message += f"- `{tid}`: {data['url']} | *{data['status']}*\n"
-    await update.message.reply_text(message, parse_mode='Markdown')
-
-# /cancel command handler
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /cancel [task_id]")
-        return
-
-    task_id = context.args[0]
-    if task_id in download_queue:
-        download_queue[task_id]["status"] = "Cancelled"
-        await update.message.reply_text(f"❌ Task `{task_id}` marked as cancelled.", parse_mode='Markdown')
-    else:
-        await update.message.reply_text("⚠️ Task not found.")
-
-# /set_upload_format command handler
-async def set_upload_format(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global UPLOAD_FORMAT
-    if not context.args or context.args[0] not in ['video', 'file']:
-        await update.message.reply_text("Usage: /set_upload_format [video/file]")
-        return
-    UPLOAD_FORMAT = context.args[0]
-    await update.message.reply_text(f"✅ Upload format set to `{UPLOAD_FORMAT}`.", parse_mode='Markdown')
-
-# /metadata command handler
-async def metadata(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global METADATA_TAG
-    if not context.args:
-        await update.message.reply_text("Usage: /metadata [tag]")
-        return
-    METADATA_TAG = context.args[0]
-    await update.message.reply_text(f"✅ Metadata tag set to `{METADATA_TAG}`", parse_mode='Markdown')
-
-# /start command handler
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (
-        "🎬 *Crunchyroll Downloader Bot*\n\n"
-        "/dl [URL] - Download anime from Crunchyroll\n"
-        "/queue - Check current download queue\n"
-        "/cancel [task_id] - Cancel a download task\n"
-        "/set_upload_format [video/file] - Set upload format\n"
-        "/metadata [name] - Set custom metadata tag"
-    )
-    await update.message.reply_text(msg, parse_mode='Markdown')
-
-# Main setup
+# Main bot setup
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
-
-    # Add command handlers
-    app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("dl", dl))
-    app.add_handler(CommandHandler("queue", queue))
-    app.add_handler(CommandHandler("cancel", cancel))
-    app.add_handler(CommandHandler("set_upload_format", set_upload_format))
-    app.add_handler(CommandHandler("metadata", metadata))
-
     print("🤖 Bot is running...")
     app.run_polling()
