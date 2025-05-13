@@ -11,7 +11,7 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 # Function to handle Crunchyroll login and save cookies
 def login_to_crunchyroll():
-    cookies_file = os.path.join(COOKIES_DIR, "cookies.txt")
+    cookies_file = os.path.join(COOKIES_DIR, "cookies")
     
     if os.path.exists(cookies_file):
         return cookies_file  # Return the existing cookies file if available
