@@ -1,28 +1,30 @@
 import os
 import subprocess
 import uuid
-import time
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from config import BOT_TOKEN, CR_EMAIL, CR_PASSWORD, DOWNLOAD_DIR, METADATA_TAG, WIDEVINE_BLOB_PATH, WIDEVINE_KEY_PATH, COOKIES_DIR
+from config import (
+    BOT_TOKEN, CR_EMAIL, CR_PASSWORD, DOWNLOAD_DIR, METADATA_TAG,
+    WIDEVINE_BLOB_PATH, WIDEVINE_KEY_PATH, COOKIES_DIR
+)
 
-# Ensure the downloads directory exists
+# Ensure required directories exist
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(COOKIES_DIR, exist_ok=True)
 
-# Function to handle Crunchyroll login and save cookies
+# Function to log into Crunchyroll and save cookies
 def login_to_crunchyroll():
-    cookies_file = os.path.join(COOKIES_DIR, "cookies")
-    
+    cookies_file = os.path.join(COOKIES_DIR, "cookies.txt")
     if os.path.exists(cookies_file):
         return cookies_file
-    
+
     try:
         login_command = [
             "yt-dlp",
             "--username", CR_EMAIL,
             "--password", CR_PASSWORD,
-            "--write-info-json",
             "--cookies", cookies_file,
+            "--no-download",
             "https://www.crunchyroll.com"
         ]
         subprocess.run(login_command, check=True)
@@ -32,28 +34,14 @@ def login_to_crunchyroll():
         print(f"Login failed: {e}")
         return None
 
-# Progress hook function
-def progress_hook(d):
-    if d['status'] == 'downloading':
-        percent = d['downloaded_bytes'] / d['total_bytes'] * 100 if d['total_bytes'] else 0
-        speed = d.get('speed', 0) / (1024 * 1024)
-        eta = d.get('eta', 0)
-        file_name = d.get('filename', "Unknown")
-        progress_bar = "■" * int(percent // 10) + "□" * (10 - int(percent // 10))
-
-        progress_message = (
-            f"🎬 {file_name} Download Started...\n"
-            f"{progress_bar}\n\n"
-            f"🔗 Size: {d['total_bytes'] / (1024 * 1024):.2f} MB | {d['downloaded_bytes'] / (1024 * 1024):.2f} MB\n"
-            f"⏳ Done: {percent:.2f}%\n"
-            f"🚀 Speed: {speed:.2f} MB/s\n"
-            f"⏰ ETA: {eta}s"
-        )
-
-        if hasattr(progress_hook, 'current_message'):
-            progress_hook.current_message.edit_text(progress_message)
-        else:
-            progress_hook.current_message = d['update'].message.reply_text(progress_message)
+# /start command
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 Welcome to Crunchyroll Downloader Bot!\n\n"
+        "Use:\n`/dl <Crunchyroll Video URL>`\n"
+        "Ensure your account has access to the video.",
+        parse_mode='Markdown'
+    )
 
 # /dl command
 async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,49 +51,48 @@ async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = context.args[0]
     task_id = str(uuid.uuid4())[:8]
-    output_template = f"{DOWNLOAD_DIR}/{METADATA_TAG}-%(title)s.%(ext)s"
+    output_basename = f"{METADATA_TAG}-{task_id}"
+    video_file = os.path.join(DOWNLOAD_DIR, output_basename + ".mp4")
+    decrypted_file = os.path.join(DOWNLOAD_DIR, output_basename + "-decrypted.mp4")
 
     cookies_file = login_to_crunchyroll()
     if not cookies_file:
-        await update.message.reply_text("❌ Failed to authenticate with Crunchyroll. Please check credentials.")
+        await update.message.reply_text("❌ Login failed. Check your credentials.")
         return
 
-    command = [
-        "yt-dlp",
-        "--external-downloader", "aria2c",
-        "--output", output_template,
-        "--merge-output-format", "mkv",
-        "--no-playlist",
-        "--cookies", cookies_file,
-        "--downloader-args", f"ffmpeg_i:-client_id_blob {WIDEVINE_BLOB_PATH} -private_key {WIDEVINE_KEY_PATH}",
-        "--progress",
-        "--quiet",
-        url
-    ]
+    msg = await update.message.reply_text(f"📥 Starting download for `{task_id}`...", parse_mode="Markdown")
 
-    initial_message = await update.message.reply_text(f"📥 Download Started: `{task_id}`\nURL: {url}", parse_mode='Markdown')
-    progress_hook.current_message = initial_message
+    # Download encrypted stream with yt-dlp
+    try:
+        subprocess.run([
+            "yt-dlp",
+            "--allow-unplayable-formats",
+            "--no-playlist",
+            "--cookies", cookies_file,
+            "-o", video_file,
+            url
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        await update.message.reply_text(f"❌ yt-dlp failed: {e}")
+        return
 
-    async def run_download():
-        try:
-            subprocess.run(command, check=True, stderr=subprocess.PIPE)
-            await update.message.reply_text(f"✅ Download complete for `{task_id}`", parse_mode='Markdown')
-        except subprocess.CalledProcessError as e:
-            await update.message.reply_text(f"❌ Download failed: {str(e)}", parse_mode='Markdown')
+    # Decrypt using mp4decrypt
+    try:
+        await msg.edit_text("🔐 Decrypting with mp4decrypt...")
+        # You should replace this key with actual key from widenine or other method
+        dummy_key = "key_id:key_value"  # Replace this with actual one
+        subprocess.run([
+            "mp4decrypt", "--key", dummy_key, video_file, decrypted_file
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        await update.message.reply_text(f"❌ Decryption failed: {e}")
+        return
 
-    context.application.create_task(run_download())
+    # Upload (optional)
+    await msg.edit_text("✅ Download and decryption complete.")
+    await update.message.reply_video(video=open(decrypted_file, 'rb'), caption=f"🎞️ `{task_id}`", parse_mode="Markdown")
 
-# /start command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome to Crunchyroll Downloader Bot!\n\n"
-        "Use the following command to download Crunchyroll videos:\n"
-        "`/dl <Crunchyroll Video URL>`\n\n"
-        "Make sure the video is accessible in your region and your account has permission to view it.",
-        parse_mode='Markdown'
-    )
-
-# Main bot setup
+# Start the bot
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
