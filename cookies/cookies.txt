@@ -17,5 +17,3 @@
 .crunchyroll.com	TRUE	/	TRUE	0	SSSC_GuUe	972.G7497808775076713437.3|89437.2790949
 .www.crunchyroll.com	TRUE	/	FALSE	1777257253	OptanonAlertBoxClosed	2025-04-27T02:34:13.277Z
 .www.crunchyroll.com	TRUE	/	FALSE	1778769855	OptanonConsent	isGpcEnabled=0&datestamp=Wed+May+14+2025+20%3A14%3A15+GMT%2B0530+(India+Standard+Time)&version=202311.1.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=55bbd7af-1211-4c94-95ec-e02ec346c3b0&interactionCount=2&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A0%2CC0002%3A0%2CC0004%3A0&geolocation=IN%3BTN&AwaitingReconsent=false
-www.crunchyroll.com	TRUE	/	FALSE	1747235423	_dd_s	rum=0&expire=1747235416069
-www.crunchyroll.com	TRUE	/	FALSE	1778769819	initial_referrer
