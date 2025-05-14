@@ -62,7 +62,6 @@ async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = await update.message.reply_text(f"📥 Starting download for `{task_id}`...", parse_mode="Markdown")
 
-    # Download encrypted stream with yt-dlp
     try:
         subprocess.run([
             "yt-dlp",
@@ -76,19 +75,20 @@ async def dl(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ yt-dlp failed: {e}")
         return
 
-    # Decrypt using mp4decrypt
     try:
         await msg.edit_text("🔐 Decrypting with mp4decrypt...")
-        # You should replace this key with actual key from widenine or other method
-        dummy_key = "key_id:key_value"  # Replace this with actual one
+        
+        # Using WIDEVINE_BLOB_PATH and WIDEVINE_KEY_PATH for decryption
         subprocess.run([
-            "mp4decrypt", "--key", dummy_key, video_file, decrypted_file
+            "mp4decrypt", 
+            "--key", f"file:{WIDEVINE_KEY_PATH}",
+            "--client_id_blob", WIDEVINE_BLOB_PATH,
+            video_file, decrypted_file
         ], check=True)
     except subprocess.CalledProcessError as e:
         await update.message.reply_text(f"❌ Decryption failed: {e}")
         return
 
-    # Upload (optional)
     await msg.edit_text("✅ Download and decryption complete.")
     await update.message.reply_video(video=open(decrypted_file, 'rb'), caption=f"🎞️ `{task_id}`", parse_mode="Markdown")
 
